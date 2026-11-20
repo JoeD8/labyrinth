@@ -1,0 +1,1154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>Echoes of the Labyrinth — Procedural Maze RPG</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <style>
+    :root { color-scheme: dark; }
+    html, body {
+      margin: 0; padding: 0; width: 100%; height: 100%;
+      background: #000; color: #f4f4f5;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      overflow: hidden; touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent; user-select: none;
+    }
+    .font-display { font-family: 'Cinzel', Georgia, serif; }
+    .font-mono-code { font-family: 'JetBrains Mono', monospace; }
+    #mazeCanvas { display: block; width: 100%; height: 100%; touch-action: none; }
+    .hud-glass { background: rgba(10,10,12,0.86); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+    .modal-backdrop { background: rgba(0,0,0,0.86); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+    .hint-pill { padding: 2px 10px; border-radius: 9999px; background: rgba(0,0,0,0.75); border: 1px solid rgba(255,255,255,0.25); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: #e4e4e7; }
+    .custom-scroll::-webkit-scrollbar { width: 6px; }
+    .custom-scroll::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); }
+    .custom-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.22); border-radius: 9999px; }
+  </style>
+</head>
+<body class="bg-black text-zinc-100 flex flex-col h-[100dvh] w-screen overflow-hidden">
+
+  <!-- TOP HUD -->
+  <header id="topHud" class="hud-glass border-b border-zinc-800/90 px-3 py-2 flex items-center justify-between gap-2 z-20 shrink-0">
+    <div class="flex items-center gap-2.5 min-w-0">
+      <div class="w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-700 flex items-center justify-center shrink-0">
+        <span class="w-3 h-3 rounded-full bg-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.9)]"></span>
+      </div>
+      <div class="min-w-0">
+        <div class="flex items-center gap-1.5">
+          <h1 id="hudThemeTitle" class="font-display text-xs sm:text-sm font-bold tracking-wider text-white truncate">WHITE LABYRINTH</h1>
+          <span id="hudFloorBadge" class="text-[10px] font-mono-code px-1.5 py-0.5 rounded bg-zinc-800 text-amber-300 border border-zinc-700 shrink-0">F1</span>
+        </div>
+        <div class="flex items-center gap-2 text-[11px] text-zinc-400 font-mono-code truncate">
+          <span id="hudSeed">SEED: ----</span><span>•</span><span id="hudSteps">STEPS: 0</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-1.5 shrink-0">
+      <button id="btnJournal" type="button" title="Party & Chronicle" class="px-2.5 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 active:scale-95 border border-zinc-700 text-xs font-medium text-zinc-200 flex items-center gap-1.5 transition">
+        <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+        <span class="hidden md:inline">Party &amp; Lore</span>
+      </button>
+      <button id="btnTweaks" type="button" title="Tweaks & Theme JSON" class="px-2.5 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 active:scale-95 border border-zinc-700 text-xs font-medium text-zinc-200 flex items-center gap-1.5 transition">
+        <svg class="w-4 h-4 text-sky-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        <span class="hidden md:inline">Tweaks &amp; JSON</span>
+      </button>
+      <button id="btnNewRun" type="button" title="New Maze / Seed" class="px-2.5 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 active:scale-95 border border-zinc-700 text-xs font-medium text-zinc-200 flex items-center gap-1.5 transition">
+        <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+        <span class="hidden md:inline">New Seed</span>
+      </button>
+      <button id="btnMute" type="button" title="Toggle Sound" class="p-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 active:scale-95 border border-zinc-700 text-zinc-300 transition">
+        <svg id="iconSoundOn" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/></svg>
+        <svg id="iconSoundOff" class="w-4 h-4 hidden text-zinc-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/><path stroke-linecap="round" stroke-linejoin="round" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"/></svg>
+      </button>
+      <button id="btnFullscreen" type="button" title="Toggle Fullscreen" class="p-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 active:scale-95 border border-zinc-700 text-zinc-200 transition">
+        <svg id="iconFsEnter" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
+        <svg id="iconFsExit" class="w-4 h-4 hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 9V4H4m0 0l5 5M15 9V4h5m0 0l-5 5M9 15v5H4m0 0l5-5m6 5v-5h5m0 0l-5 5"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- MAP VIEWPORT -->
+  <main class="relative flex-1 w-full h-full overflow-hidden bg-black">
+    <canvas id="mazeCanvas"></canvas>
+    <div class="pointer-events-none absolute inset-0 flex flex-col justify-between items-center p-3 z-10">
+      <div class="hint-pill">▲ Tap Top</div>
+      <div class="w-full flex justify-between items-center">
+        <div class="hint-pill">◀</div><div class="hint-pill">▶</div>
+      </div>
+      <div class="hint-pill">▼ Tap Bottom</div>
+    </div>
+    <div id="toastBox" class="pointer-events-none absolute top-12 left-1/2 -translate-x-1/2 z-30 transition-all duration-300 opacity-0 -translate-y-2">
+      <div id="toastMsg" class="px-4 py-2 rounded-full bg-zinc-900/95 border border-amber-500/40 text-amber-200 text-xs font-medium shadow-lg whitespace-nowrap"></div>
+    </div>
+  </main>
+
+  <!-- BOTTOM PARTY BAR -->
+  <footer id="bottomHud" class="hud-glass border-t border-zinc-800/90 px-3 py-2 z-20 shrink-0">
+    <div class="max-w-3xl mx-auto flex items-center justify-between gap-3">
+      <div id="miniPartyBar" class="flex items-center gap-2 sm:gap-3 overflow-x-auto flex-1"></div>
+      <div class="flex items-center gap-2 shrink-0 text-[11px] font-mono-code">
+        <span class="px-2 py-1 rounded bg-zinc-900 border border-zinc-800 text-amber-300" id="hudGold">0g</span>
+        <button id="btnUsePotion" type="button" class="px-2.5 py-1 rounded bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-700/60 text-emerald-200 active:scale-95 transition">
+          Potion (<span id="hudPotions">2</span>)
+        </button>
+      </div>
+    </div>
+  </footer>
+
+  <!-- FULLSCREEN BATTLE SCREEN -->
+  <div id="battleModal" class="hidden fixed inset-0 z-40 bg-black flex flex-col overflow-hidden">
+    <div class="bg-gradient-to-r from-red-950/90 via-zinc-950 to-zinc-950 px-4 py-3 border-b border-zinc-800 flex items-center justify-between shrink-0">
+      <div class="flex items-center gap-2">
+        <span class="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"></span>
+        <span class="font-display text-sm font-bold tracking-wider text-red-200">ENCOUNTER</span>
+      </div>
+      <span id="battleRoundBadge" class="text-[11px] font-mono-code px-2 py-0.5 rounded bg-zinc-900 text-zinc-300 border border-zinc-700">ROUND 1</span>
+    </div>
+
+    <div class="flex-1 overflow-y-auto custom-scroll p-4 sm:p-6 flex flex-col justify-between max-w-2xl w-full mx-auto gap-4">
+      <div class="rounded-2xl bg-gradient-to-b from-zinc-900/90 to-black border border-zinc-800 p-5 text-center">
+        <div class="flex items-center justify-center gap-2 mb-1">
+          <span class="text-[11px] font-mono-code uppercase tracking-widest text-red-400" id="battleEnemyType">Construct</span>
+          <span id="battleEnemyTrait" class="text-[10px] font-mono-code px-2 py-0.5 rounded bg-zinc-800 text-amber-300 border border-zinc-700"></span>
+        </div>
+        <div class="w-20 h-20 mx-auto my-3 rounded-2xl bg-zinc-950 border border-red-500/40 flex items-center justify-center text-4xl shadow-[0_0_30px_rgba(239,68,68,0.22)]" id="battleEnemyIcon">🗿</div>
+        <h2 class="font-display text-xl font-bold text-white" id="battleEnemyName">Hollow Sentinel</h2>
+        <p class="text-xs text-zinc-400 mt-1 max-w-md mx-auto leading-relaxed" id="battleEnemyDesc"></p>
+        <div class="max-w-xs mx-auto mt-3">
+          <div class="flex justify-between text-[11px] font-mono-code text-zinc-300 mb-1"><span>ENEMY HP</span><span id="battleEnemyHpText">40 / 40</span></div>
+          <div class="w-full h-2.5 bg-zinc-800 rounded-full overflow-hidden border border-zinc-700"><div id="battleEnemyHpBar" class="h-full bg-red-500 transition-all duration-300" style="width:100%"></div></div>
+        </div>
+      </div>
+
+      <div id="battleLog" class="rounded-xl bg-zinc-950 border border-zinc-800 p-3 text-xs text-zinc-300 space-y-1 max-h-28 overflow-y-auto custom-scroll font-mono-code"></div>
+
+      <div>
+        <div class="flex items-center justify-between text-[11px] uppercase tracking-wider text-zinc-400 mb-2 font-semibold">
+          <span>Your Party</span><span id="battleTurnHint" class="text-amber-300 font-mono-code">Select command...</span>
+        </div>
+        <div id="battlePartyList" class="grid grid-cols-3 gap-2"></div>
+      </div>
+
+      <div id="battleActions" class="grid grid-cols-2 sm:grid-cols-5 gap-2 pb-1">
+        <button id="btnCmdAttack" type="button" class="py-3 px-3 rounded-xl bg-red-600 hover:bg-red-500 active:scale-95 text-white font-semibold text-xs sm:text-sm transition flex items-center justify-center gap-1.5"><span>⚔️</span> <span id="lblCmdAttack">Attack</span></button>
+        <button id="btnCmdDefend" type="button" class="py-3 px-3 rounded-xl bg-sky-700 hover:bg-sky-600 active:scale-95 text-white font-semibold text-xs sm:text-sm transition flex items-center justify-center gap-1.5"><span>🛡️</span> <span id="lblCmdDefend">Defend</span></button>
+        <button id="btnCmdCast" type="button" class="py-3 px-3 rounded-xl bg-violet-700 hover:bg-violet-600 active:scale-95 text-white font-semibold text-xs sm:text-sm transition flex items-center justify-center gap-1.5"><span>✨</span> <span id="lblCmdCast">Cast (4MP)</span></button>
+        <button id="btnCmdPotion" type="button" class="py-3 px-3 rounded-xl bg-emerald-800 hover:bg-emerald-700 active:scale-95 text-emerald-100 font-semibold text-xs sm:text-sm transition flex items-center justify-center gap-1.5"><span>🧪</span> Potion (<span id="battlePotionCount">2</span>)</button>
+        <button id="btnBattleFlee" type="button" class="col-span-2 sm:col-span-1 py-3 px-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 active:scale-95 text-zinc-200 font-semibold text-xs sm:text-sm border border-zinc-700 transition flex items-center justify-center gap-1.5"><span>💨</span> <span id="lblCmdFlee">Flee</span></button>
+      </div>
+
+      <div id="battleEndControls" class="hidden space-y-2 pb-1">
+        <button id="btnBattleReturn" type="button" class="w-full py-3.5 px-4 rounded-xl bg-white hover:bg-zinc-200 active:scale-95 text-black font-bold text-sm transition">Return to Maze</button>
+        <div id="battleDefeatButtons" class="hidden grid grid-cols-2 gap-2">
+          <button id="btnBattleRevive" type="button" class="py-3 px-4 rounded-xl bg-amber-400 hover:bg-amber-300 active:scale-95 text-black font-bold text-sm transition">Revive at Entrance</button>
+          <button id="btnBattleNewSeed" type="button" class="py-3 px-4 rounded-xl bg-zinc-800 hover:bg-zinc-700 active:scale-95 text-white font-semibold text-sm border border-zinc-700 transition">New Seed</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- INTRO MODAL -->
+  <div id="introModal" class="hidden fixed inset-0 z-50 modal-backdrop flex items-center justify-center p-4">
+    <div class="w-full max-w-md rounded-2xl bg-zinc-950 border border-amber-500/40 shadow-2xl overflow-hidden">
+      <div class="bg-gradient-to-r from-amber-950/60 via-zinc-900 to-zinc-950 px-5 py-3.5 border-b border-zinc-800 text-center">
+        <h2 id="introModalTitle" class="font-display text-base font-bold tracking-wider text-amber-300">INTO THE LABYRINTH</h2>
+      </div>
+      <div class="p-5 space-y-4">
+        <p id="introModalText" class="text-sm text-zinc-200 leading-relaxed"></p>
+        <button id="btnCloseIntro" type="button" class="w-full py-3 px-4 rounded-xl bg-white hover:bg-zinc-200 active:scale-95 text-black font-bold text-sm transition">Step Into the Dark</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- STORY MODAL -->
+  <div id="storyModal" class="hidden fixed inset-0 z-40 modal-backdrop flex items-center justify-center p-3 sm:p-6">
+    <div class="w-full max-w-md rounded-2xl bg-zinc-950 border border-amber-500/40 shadow-2xl overflow-hidden flex flex-col max-h-[90dvh]">
+      <div class="bg-gradient-to-r from-amber-950/60 via-zinc-900 to-zinc-950 px-4 py-3 border-b border-zinc-800 flex items-center justify-between">
+        <span class="font-display text-sm font-bold tracking-wider text-amber-300" id="storyTitle">WHISPERING SHRINE</span>
+        <span class="text-lg" id="storyIcon">🕯️</span>
+      </div>
+      <div class="p-4 sm:p-5 overflow-y-auto custom-scroll space-y-4">
+        <p id="storyText" class="text-sm text-zinc-200 leading-relaxed"></p>
+        <div id="storyChoices" class="space-y-2"></div>
+        <div id="storyResult" class="hidden rounded-xl bg-zinc-900 border border-zinc-700 p-3 text-xs text-amber-200 leading-relaxed"></div>
+        <button id="btnStoryContinue" type="button" class="hidden w-full py-2.5 px-4 rounded-xl bg-amber-400 hover:bg-amber-300 active:scale-95 text-black font-bold text-sm transition">Continue Exploring</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- VICTORY MODAL -->
+  <div id="victoryModal" class="hidden fixed inset-0 z-40 modal-backdrop flex items-center justify-center p-3 sm:p-6">
+    <div class="w-full max-w-md rounded-2xl bg-zinc-950 border border-emerald-500/50 shadow-2xl overflow-hidden">
+      <div class="bg-gradient-to-r from-emerald-950/70 via-zinc-900 to-zinc-950 px-4 py-3 border-b border-zinc-800 text-center">
+        <span id="victoryModalTitle" class="font-display text-base font-bold tracking-wider text-emerald-300">SANCTUM GATE REACHED</span>
+      </div>
+      <div class="p-5 space-y-4 text-center">
+        <div class="text-4xl">🌀</div>
+        <p id="victorySummary" class="text-sm text-zinc-300 leading-relaxed"></p>
+        <div class="grid grid-cols-3 gap-2 text-xs font-mono-code bg-zinc-900/90 border border-zinc-800 rounded-xl p-3">
+          <div><div class="text-zinc-500">FLOOR</div><div id="vicFloor" class="text-white font-bold text-sm mt-0.5">1</div></div>
+          <div><div class="text-zinc-500">STEPS</div><div id="vicSteps" class="text-white font-bold text-sm mt-0.5">0</div></div>
+          <div><div class="text-zinc-500">GOLD</div><div id="vicGold" class="text-amber-300 font-bold text-sm mt-0.5">0g</div></div>
+        </div>
+        <div class="flex flex-col sm:flex-row gap-2.5 pt-1">
+          <button id="btnDescend" type="button" class="flex-1 py-3 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-black font-bold text-sm transition">Descend Deeper (Keep Party)</button>
+          <button id="btnVictoryNew" type="button" class="py-3 px-4 rounded-xl bg-zinc-800 hover:bg-zinc-700 active:scale-95 text-zinc-200 font-semibold text-sm border border-zinc-700 transition">New Seed</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- JOURNAL MODAL -->
+  <div id="journalModal" class="hidden fixed inset-0 z-40 modal-backdrop flex items-center justify-center p-3 sm:p-6">
+    <div class="w-full max-w-lg rounded-2xl bg-zinc-950 border border-zinc-700 shadow-2xl overflow-hidden flex flex-col max-h-[90dvh]">
+      <div class="px-4 py-3 border-b border-zinc-800 flex items-center justify-between bg-zinc-900/60">
+        <h2 class="font-display text-sm font-bold tracking-wider text-white">PARTY &amp; CHRONICLE</h2>
+        <button id="btnCloseJournal" type="button" class="text-zinc-400 hover:text-white text-lg leading-none px-2">&times;</button>
+      </div>
+      <div class="p-4 overflow-y-auto custom-scroll space-y-4">
+        <div><h3 class="text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-2">Active Party</h3><div id="journalPartyList" class="space-y-2"></div></div>
+        <div><h3 class="text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-2">Supplies &amp; Status</h3><div id="journalInventory" class="text-xs text-zinc-300 bg-zinc-900 border border-zinc-800 rounded-xl p-3"></div></div>
+        <div><h3 class="text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-2">Maze Chronicle</h3><div id="journalEntries" class="space-y-1.5 text-xs text-zinc-300 max-h-48 overflow-y-auto custom-scroll pr-1"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TWEAKS & THEME JSON MODAL -->
+  <div id="tweaksModal" class="hidden fixed inset-0 z-50 modal-backdrop flex items-center justify-center p-3 sm:p-6">
+    <div class="w-full max-w-lg rounded-2xl bg-zinc-950 border border-zinc-700 shadow-2xl overflow-hidden flex flex-col max-h-[92dvh]">
+      <div class="px-4 py-3 border-b border-zinc-800 flex items-center justify-between bg-zinc-900/60">
+        <h2 class="font-display text-sm font-bold tracking-wider text-sky-300">TWEAKS &amp; THEME STUDIO</h2>
+        <button id="btnCloseTweaks" type="button" class="text-zinc-400 hover:text-white text-lg leading-none px-2">&times;</button>
+      </div>
+      <div class="flex border-b border-zinc-800 bg-zinc-900/40 text-xs font-semibold">
+        <button id="tabBtnGameplay" type="button" class="flex-1 py-2.5 text-sky-300 border-b-2 border-sky-400">Gameplay Tweaks</button>
+        <button id="tabBtnJson" type="button" class="flex-1 py-2.5 text-zinc-400 hover:text-zinc-200 border-b-2 border-transparent">Theme &amp; Encounter JSON</button>
+      </div>
+      <div class="p-4 sm:p-5 overflow-y-auto custom-scroll space-y-4">
+        <div id="tabPanelGameplay" class="space-y-4">
+          <div class="p-3 rounded-xl bg-zinc-900/80 border border-zinc-800 space-y-3">
+            <div class="flex items-center justify-between">
+              <div><div class="text-xs font-semibold text-white">Darkness / Fog of War</div><div class="text-[11px] text-zinc-400">Walls darken with distance; beyond radius is blacked out.</div></div>
+              <input id="chkFogEnabled" type="checkbox" class="w-4 h-4 accent-sky-400" />
+            </div>
+            <div>
+              <div class="flex justify-between text-[11px] text-zinc-300 mb-1"><span>Visibility Radius (squares)</span><span id="lblFogRadius" class="font-mono-code text-sky-300">3</span></div>
+              <input id="rngFogRadius" type="range" min="1" max="8" step="1" class="w-full accent-sky-400" />
+            </div>
+            <div class="flex items-center justify-between text-xs">
+              <span class="text-zinc-300">Fog Style</span>
+              <select id="selFogMode" class="px-2.5 py-1 rounded-lg bg-zinc-950 border border-zinc-700 text-xs text-white">
+                <option value="blocks">Per-Block Brightness</option>
+                <option value="gradient">Radial Gradient Filter</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="p-3 rounded-xl bg-zinc-900/80 border border-zinc-800 space-y-2">
+            <div class="flex justify-between text-xs"><span class="font-semibold text-white">Camera Zoom (Tiles Across)</span><span id="lblZoomTiles" class="font-mono-code text-sky-300">7</span></div>
+            <input id="rngZoomTiles" type="range" min="5" max="17" step="2" class="w-full accent-sky-400" />
+          </div>
+
+          <div class="p-3 rounded-xl bg-zinc-900/80 border border-zinc-800 space-y-3">
+            <div>
+              <div class="flex justify-between text-xs mb-1"><span class="font-semibold text-white">Avg Steps Between Encounters</span><span id="lblEncounterAvg" class="font-mono-code text-sky-300">15</span></div>
+              <input id="rngEncounterAvg" type="range" min="5" max="35" step="1" class="w-full accent-sky-400" />
+            </div>
+            <div>
+              <div class="flex justify-between text-xs mb-1"><span class="font-semibold text-white">Gold Token &amp; Shrine Density</span><span id="lblTokenFreq" class="font-mono-code text-sky-300">Normal</span></div>
+              <input id="rngTokenFreq" type="range" min="0" max="2" step="1" class="w-full accent-sky-400" />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2.5">
+            <button id="btnTweakHeal" type="button" class="py-2.5 px-3 rounded-xl bg-emerald-900/70 hover:bg-emerald-800 border border-emerald-700 text-xs font-semibold text-emerald-100 active:scale-95 transition">Refresh Party HP/MP</button>
+            <button id="btnTweakResetRot" type="button" class="py-2.5 px-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-xs font-semibold text-zinc-200 active:scale-95 transition">Reset Map Rotation (0°)</button>
+          </div>
+        </div>
+
+        <div id="tabPanelJson" class="hidden space-y-3">
+          <p class="text-xs text-zinc-400 leading-relaxed">Export the game theme JSON, ask an LLM to re-theme it (e.g., high school, sci-fi, horror), and paste it back here.</p>
+          <div class="flex flex-wrap gap-2">
+            <button id="btnExportJson" type="button" class="px-3 py-1.5 rounded-lg bg-sky-700 hover:bg-sky-600 text-white text-xs font-semibold transition">Copy JSON to Clipboard</button>
+            <button id="btnDownloadJson" type="button" class="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-200 text-xs font-semibold transition">Download .json</button>
+            <button id="btnResetTheme" type="button" class="px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-amber-300 text-xs font-semibold transition">Reset Default Theme</button>
+          </div>
+          <textarea id="txtThemeJson" rows="10" spellcheck="false" class="w-full p-3 rounded-xl bg-black border border-zinc-700 text-[11px] font-mono-code text-emerald-300 focus:outline-none focus:border-sky-400 custom-scroll"></textarea>
+          <div id="jsonErrorMsg" class="hidden text-xs text-red-400 font-mono-code"></div>
+          <button id="btnImportJson" type="button" class="w-full py-2.5 px-4 rounded-xl bg-white hover:bg-zinc-200 active:scale-95 text-black font-bold text-sm transition">Apply Imported Theme JSON</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- NEW RUN MODAL -->
+  <div id="newRunModal" class="hidden fixed inset-0 z-50 modal-backdrop flex items-center justify-center p-3 sm:p-6">
+    <div class="w-full max-w-md rounded-2xl bg-zinc-950 border border-zinc-700 shadow-2xl overflow-hidden flex flex-col max-h-[92dvh]">
+      <div class="px-4 py-3 border-b border-zinc-800 flex items-center justify-between bg-zinc-900/60">
+        <h2 class="font-display text-sm font-bold tracking-wider text-amber-300">NEW EXPEDITION</h2>
+        <button id="btnCloseNewRun" type="button" class="text-zinc-400 hover:text-white text-lg leading-none px-2">&times;</button>
+      </div>
+      <form id="newRunForm" class="p-4 sm:p-5 overflow-y-auto custom-scroll space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-zinc-300 mb-1" for="inputSeed">Maze Seed</label>
+          <div class="flex gap-2">
+            <input id="inputSeed" type="text" maxlength="24" required class="flex-1 px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-sm font-mono-code text-white focus:outline-none focus:border-amber-400" />
+            <button id="btnRandomSeed" type="button" class="px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-xs font-medium text-zinc-200">Random</button>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="block text-xs font-semibold text-zinc-300 mb-1" for="inputWidth">Width (X: 9–51)</label><input id="inputWidth" type="number" min="9" max="51" step="2" value="19" required class="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-sm font-mono-code text-white focus:outline-none focus:border-amber-400" /></div>
+          <div><label class="block text-xs font-semibold text-zinc-300 mb-1" for="inputHeight">Height (Y: 9–51)</label><input id="inputHeight" type="number" min="9" max="51" step="2" value="19" required class="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-sm font-mono-code text-white focus:outline-none focus:border-amber-400" /></div>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-zinc-300 mb-1.5">Choose Party</label>
+          <div class="grid grid-cols-1 gap-2" id="archetypeOptions"></div>
+        </div>
+        <button type="submit" class="w-full py-3 px-4 rounded-xl bg-white hover:bg-zinc-200 active:scale-95 text-black font-bold text-sm transition">Generate Solvable Maze &amp; Begin</button>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      'use strict';
+      const $ = id => document.getElementById(id);
+      const STORAGE_KEY = 'labyrinth_echoes_save_v2';
+      const clone = o => JSON.parse(JSON.stringify(o));
+
+      const DEFAULT_THEME = {
+        themeName: 'WHITE LABYRINTH',
+        introTitle: 'INTO THE WHITE LABYRINTH',
+        introText: 'You step into a shifting expanse of chalk-white walls. Your lantern illuminates only three paces ahead. Find the Sanctum Gate—and beware the battles that twist your sense of direction.',
+        victoryTitle: 'SANCTUM GATE REACHED',
+        victoryText: 'The corridor opens onto a spiralling stair descending deeper into the labyrinth.',
+        wallColors: ['#ffffff', '#bae6fd', '#fde68a', '#fecdd3', '#a7f3d0', '#ddd6fe'],
+        commands: { attack: 'Attack', defend: 'Defend', cast: 'Cast', flee: 'Flee' },
+        archetypes: [
+          {
+            id: 'knight', name: 'Vanguard Company (Balanced)',
+            desc: 'Sir Rowan (Knight), Lyra (Arcanist), Pip (Minstrel). High HP & steady resolve.',
+            startPotions: 2, startGold: 10,
+            members: [
+              { name: 'Sir Rowan', role: 'Knight', spellName: 'Radiant Slash', hp: 42, mp: 8, atk: 9, mag: 5 },
+              { name: 'Lyra', role: 'Arcanist', spellName: 'Starfire', hp: 26, mp: 24, atk: 5, mag: 12 },
+              { name: 'Pip', role: 'Minstrel', spellName: 'Dissonant Chord', hp: 32, mp: 16, atk: 6, mag: 9 }
+            ]
+          },
+          {
+            id: 'scholar', name: 'Astral Expeditions (Lore-Seekers)',
+            desc: 'Vesper (Scholar), Kael (Warden), Echo (Seer). High MP & arcane power.',
+            startPotions: 2, startGold: 15,
+            members: [
+              { name: 'Vesper', role: 'Scholar', spellName: 'Glyph Burst', hp: 28, mp: 26, atk: 5, mag: 12 },
+              { name: 'Kael', role: 'Warden', spellName: 'Aegis Strike', hp: 36, mp: 12, atk: 8, mag: 7 },
+              { name: 'Echo', role: 'Seer', spellName: 'Void Lance', hp: 26, mp: 24, atk: 5, mag: 11 }
+            ]
+          },
+          {
+            id: 'rogue', name: 'Gilded Drifters (Treasure Hunters)',
+            desc: 'Sable (Rogue), Thorne (Ranger), Orin (Alchemist). Extra potions & gold.',
+            startPotions: 4, startGold: 30,
+            members: [
+              { name: 'Sable', role: 'Rogue', spellName: 'Shadow Fang', hp: 32, mp: 12, atk: 10, mag: 7 },
+              { name: 'Thorne', role: 'Ranger', spellName: 'Gale Arrow', hp: 34, mp: 14, atk: 8, mag: 8 },
+              { name: 'Orin', role: 'Alchemist', spellName: 'Acid Flask', hp: 30, mp: 18, atk: 6, mag: 10 }
+            ]
+          }
+        ],
+        enemies: [
+          { name: 'Hollow Sentinel', type: 'Construct', icon: '🗿', desc: 'A chalk-carved guardian with thick stone plating.', hp: 46, atk: 7, xp: 16, gold: 14, weakTo: 'cast', resistTo: 'attack' },
+          { name: 'Ink-Veil Wraith', type: 'Spirit', icon: '👻', desc: 'A drifting shadow that shrugs off steel blades.', hp: 38, atk: 8, xp: 18, gold: 16, weakTo: 'cast', resistTo: 'attack' },
+          { name: 'Obsidian Hound', type: 'Beast', icon: '🐺', desc: 'Fast and feral, though brittle against heavy blows.', hp: 36, atk: 9, xp: 15, gold: 12, weakTo: 'attack', resistTo: 'none' },
+          { name: 'Gilded Mimic', type: 'Aberration', icon: '🗝️', desc: 'Disguised as a brass lantern; resists arcane sparks.', hp: 44, atk: 8, xp: 20, gold: 28, weakTo: 'attack', resistTo: 'cast' },
+          { name: 'Ashen Scribe', type: 'Undead', icon: '📜', desc: 'Mutters forgotten coordinates while scratching runes.', hp: 34, atk: 7, xp: 15, gold: 15, weakTo: 'none', resistTo: 'none' }
+        ],
+        stories: [
+          {
+            title: 'THE CRACKED COMPASS', icon: '🧭',
+            text: 'Resting on a stone plinth is a brass compass whose needle spins lazily in circles.',
+            choices: [
+              { label: 'Pocket the brass shards (+15g)', effect: 'gold', amount: 15, resultText: 'You gather the gilded shards (+15g).' },
+              { label: 'Meditate by the plinth (+10 HP & +5 MP)', effect: 'heal', amount: 10, resultText: 'A cool breeze steadies your breathing (+10 HP, +5 MP to all).' }
+            ]
+          },
+          {
+            title: 'THE PILGRIM’S CAMPFIRE', icon: '🔥',
+            text: 'A blue flame burns without fuel in an alcove beside a weathered satchel.',
+            choices: [
+              { label: 'Search the satchel (+1 Potion)', effect: 'potion', amount: 1, resultText: 'Inside you find an Elixir Vial (+1 Potion).' },
+              { label: 'Warm your blades (+1 ATK)', effect: 'atk', amount: 1, resultText: 'Pale sparks cling to your weapons (+1 ATK permanently).' }
+            ]
+          },
+          {
+            title: 'WHISPERING MURAL', icon: '🕯️',
+            text: 'Etched into the wall is a map of a maze whose lines seem to rearrange themselves.',
+            choices: [
+              { label: 'Realign your bearings (Reset rotation to 0°)', effect: 'reset_rotation', amount: 0, resultText: 'Your sense of North is restored!' },
+              { label: 'Trace the hidden runes (+25g)', effect: 'gold', amount: 25, resultText: 'A hidden slot opens, revealing 25 coins.' }
+            ]
+          }
+        ]
+      };
+
+      // Seeded PRNG
+      function mulberry32(str) {
+        let h = 1779033703 ^ str.length;
+        for (let i = 0; i < str.length; i++) {
+          h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
+          h = (h << 13) | (h >>> 19);
+        }
+        h = Math.imul(h ^ (h >>> 16), 2246822507);
+        h = Math.imul(h ^ (h >>> 13), 3266489909);
+        let a = (h ^= h >>> 16) >>> 0;
+        return () => {
+          let t = (a += 0x6D2B79F5);
+          t = Math.imul(t ^ (t >>> 15), t | 1);
+          t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+          return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+      }
+
+      const randomSeedString = () => {
+        const words = ['ECHO', 'CHALK', 'ASTRAL', 'DUSK', 'VEIL', 'CRYPT', 'RUNE', 'MIST'];
+        return `${words[Math.floor(Math.random() * words.length)]}-${Math.floor(1000 + Math.random() * 9000)}`;
+      };
+
+      // Web Audio
+      const Sound = {
+        ctx: null,
+        init() {
+          if (!this.ctx) {
+            const Ctx = window.AudioContext || window.webkitAudioContext;
+            if (Ctx) this.ctx = new Ctx();
+          }
+          if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
+        },
+        play(type) {
+          if (state?.muted) return;
+          this.init();
+          if (!this.ctx) return;
+          const t = this.ctx.currentTime, o = this.ctx.createOscillator(), g = this.ctx.createGain();
+          o.connect(g); g.connect(this.ctx.destination);
+          const presets = {
+            step: ['triangle', [[140,0],[75,0.05]], 0.05, 0.06],
+            bump: ['sawtooth', [[85,0],[45,0.09]], 0.07, 0.1],
+            hit: ['square', [[220,0],[90,0.12]], 0.08, 0.14],
+            coin: ['sine', [[880,0],[1174.66,0.06]], 0.07, 0.22],
+            encounter: ['square', [[320,0],[480,0.07],[240,0.14]], 0.09, 0.28],
+            shrine: ['sine', [[523.25,0],[659.25,0.1],[783.99,0.2]], 0.08, 0.45],
+            victory: ['triangle', [[440,0],[554.37,0.09],[659.25,0.18],[880,0.27]], 0.1, 0.5]
+          };
+          const p = presets[type];
+          if (!p) return;
+          o.type = p[0];
+          p[1].forEach(([f, dt]) => o.frequency.setValueAtTime(f, t + dt));
+          g.gain.setValueAtTime(p[2], t);
+          g.gain.exponentialRampToValueAtTime(0.001, t + p[3]);
+          o.start(t); o.stop(t + p[3] + 0.02);
+        }
+      };
+
+      // Maze Generator (Iterative DFS + BFS Exit)
+      function generateMaze(rawW, rawH, seedStr, floorNum, tokenFreq) {
+        let w = Math.max(9, Math.min(51, Math.floor(rawW)));
+        let h = Math.max(9, Math.min(51, Math.floor(rawH)));
+        if (w % 2 === 0) w++;
+        if (h % 2 === 0) h++;
+
+        const rng = mulberry32(`${seedStr}::floor_${floorNum}`);
+        const grid = Array.from({ length: h }, () => Array(w).fill(1));
+        const shuffle = arr => { for (let i = arr.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [arr[i], arr[j]] = [arr[j], arr[i]]; } return arr; };
+
+        grid[1][1] = 0;
+        const stack = [[1, 1]];
+        while (stack.length) {
+          const [cx, cy] = stack[stack.length - 1];
+          let carved = false;
+          for (const [dx, dy] of shuffle([[0,-2],[2,0],[0,2],[-2,0]])) {
+            const nx = cx + dx, ny = cy + dy;
+            if (nx > 0 && nx < w - 1 && ny > 0 && ny < h - 1 && grid[ny][nx] === 1) {
+              grid[cy + dy / 2][cx + dx / 2] = 0;
+              grid[ny][nx] = 0;
+              stack.push([nx, ny]);
+              carved = true;
+              break;
+            }
+          }
+          if (!carved) stack.pop();
+        }
+
+        const dist = Array.from({ length: h }, () => Array(w).fill(-1));
+        const queue = [[1, 1]];
+        dist[1][1] = 0;
+        let farX = 1, farY = 1, maxDist = 0, head = 0;
+        const floorCells = [];
+        while (head < queue.length) {
+          const [x, y] = queue[head++];
+          if (x !== 1 || y !== 1) floorCells.push([x, y]);
+          if (dist[y][x] > maxDist) { maxDist = dist[y][x]; farX = x; farY = y; }
+          for (const [dx, dy] of [[0,-1],[1,0],[0,1],[-1,0]]) {
+            const nx = x + dx, ny = y + dy;
+            if (nx >= 0 && nx < w && ny >= 0 && ny < h && grid[ny][nx] === 0 && dist[ny][nx] === -1) {
+              dist[ny][nx] = dist[y][x] + 1;
+              queue.push([nx, ny]);
+            }
+          }
+        }
+        grid[farY][farX] = 2;
+
+        const candidates = shuffle(floorCells.filter(([x, y]) => x !== farX || y !== farY));
+        const mult = tokenFreq === 0 ? 0.5 : tokenFreq === 2 ? 1.8 : 1;
+        const shrineCount = Math.min(candidates.length, Math.max(1, Math.round((w * h) / 95 * mult)));
+        const goldCount = Math.min(candidates.length - shrineCount, Math.max(1, Math.round((w * h) / 60 * mult)));
+        candidates.slice(0, shrineCount).forEach(([x, y]) => { grid[y][x] = 3; });
+        candidates.slice(shrineCount, shrineCount + goldCount).forEach(([x, y]) => { grid[y][x] = 4; });
+
+        return { w, h, grid };
+      }
+
+      // State & RPG Helpers
+      let state = null;
+      const defaultSettings = () => ({ fogEnabled: true, fogRadius: 3, fogMode: 'blocks', zoomTiles: 7, encounterAvg: 15, tokenFreq: 1 });
+      const nextEncounterSteps = avg => Math.max(2, (avg || 15) - 5) + Math.floor(Math.random() * 11);
+
+      function healParty(s, hpAmt, mpAmt) {
+        s.party.forEach(m => {
+          if (m.hp > 0) {
+            m.hp = Math.min(m.maxHp, m.hp + hpAmt);
+            m.mp = Math.min(m.maxMp, m.mp + mpAmt);
+          }
+        });
+      }
+
+      function grantPartyXp(s, xpAmt) {
+        const leveled = [];
+        s.party.forEach(m => {
+          if (m.hp <= 0) return;
+          m.xp += xpAmt;
+          while (m.xp >= m.lvl * 30) {
+            m.xp -= m.lvl * 30; m.lvl += 1;
+            m.maxHp += 5; m.hp = Math.min(m.maxHp, m.hp + 5);
+            m.maxMp += 3; m.mp = Math.min(m.maxMp, m.mp + 3);
+            m.atk += 2; m.mag += 2;
+            leveled.push(`${m.name} reached Lv${m.lvl}`);
+          }
+        });
+        return leveled;
+      }
+
+      function createNewState(seedStr, w, h, archId, existingParty = null, floorNum = 1, existingInv = null, existingJournal = null, existingSettings = null, existingTheme = null) {
+        const theme = existingTheme || state?.theme || clone(DEFAULT_THEME);
+        const settings = existingSettings || state?.settings || defaultSettings();
+        const mz = generateMaze(w, h, seedStr, floorNum, settings.tokenFreq);
+        const arch = (theme.archetypes || []).find(a => a.id === archId) || theme.archetypes[0];
+        const party = existingParty || arch.members.map(m => ({
+          name: m.name, role: m.role, spellName: m.spellName || 'Arcane Bolt',
+          hp: m.hp, maxHp: m.hp, mp: m.mp, maxMp: m.mp, atk: m.atk, mag: m.mag || m.atk, lvl: 1, xp: 0, defending: false
+        }));
+        const inv = existingInv || { potions: arch.startPotions ?? 2, gold: arch.startGold ?? 10 };
+        const journal = existingJournal || [{ floor: floorNum, step: 0, text: `Entered Floor ${floorNum} (Seed: ${seedStr}, ${mz.w}×${mz.h}).` }];
+        if (existingJournal) journal.unshift({ floor: floorNum, step: 0, text: `Descended to Floor ${floorNum} (${mz.w}×${mz.h}).` });
+
+        return {
+          seed: seedStr, width: mz.w, height: mz.h, floor: floorNum, archetype: arch.id,
+          maze: mz.grid, player: { x: 1, y: 1 }, moveHistory: [[1, 1]], rotation: 0,
+          steps: 0, stepsUntilEncounter: nextEncounterSteps(settings.encounterAvg),
+          screen: floorNum === 1 && !existingParty ? 'intro' : 'map',
+          activeEncounter: null, activeStory: null, party, inventory: inv,
+          journal: journal.slice(0, 30), settings, theme, muted: state ? state.muted : false
+        };
+      }
+
+      const saveState = () => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch {} };
+      function loadState() {
+        try {
+          const p = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+          if (p && Array.isArray(p.maze) && p.player) {
+            p.settings = p.settings || defaultSettings();
+            p.theme = p.theme || clone(DEFAULT_THEME);
+            p.moveHistory = Array.isArray(p.moveHistory) ? p.moveHistory : [[p.player.x, p.player.y]];
+            return p;
+          }
+        } catch {}
+        return null;
+      }
+
+      let toastTimer = null;
+      function showToast(msg, ms = 2600) {
+        $('toastMsg').textContent = msg;
+        $('toastBox').classList.remove('opacity-0', '-translate-y-2');
+        $('toastBox').classList.add('opacity-100', 'translate-y-0');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => {
+          $('toastBox').classList.add('opacity-0', '-translate-y-2');
+          $('toastBox').classList.remove('opacity-100', 'translate-y-0');
+        }, ms);
+      }
+
+      function hexToRgb(hex) {
+        const c = (hex || '#ffffff').replace('#', '');
+        const f = c.length === 3 ? c.split('').map(x => x + x).join('') : c;
+        const n = parseInt(f, 16);
+        return isNaN(n) ? [255, 255, 255] : [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+      }
+
+      // Canvas Rendering
+      const canvas = $('mazeCanvas'), ctx = canvas.getContext('2d');
+      let tapFlash = null;
+
+      function resizeCanvas() {
+        const parent = canvas.parentElement, dpr = Math.min(window.devicePixelRatio || 1, 2), rect = parent.getBoundingClientRect();
+        canvas.width = Math.max(1, Math.floor(rect.width * dpr));
+        canvas.height = Math.max(1, Math.floor(rect.height * dpr));
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        renderMaze();
+      }
+
+      function renderMaze() {
+        if (!state) return;
+        const vw = canvas.parentElement.clientWidth, vh = canvas.parentElement.clientHeight;
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, vw, vh);
+
+        const tileSize = Math.max(20, Math.floor(Math.min(vw, vh) / ((state.settings.zoomTiles || 7) + 0.2)));
+        const cx = vw / 2, cy = vh / 2;
+        const { fogEnabled, fogRadius = 3, fogMode = 'blocks' } = state.settings;
+        const colors = state.theme?.wallColors?.length ? state.theme.wallColors : DEFAULT_THEME.wallColors;
+        const [wr, wg, wb] = hexToRgb(colors[(state.floor - 1) % colors.length]);
+
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate((state.rotation * Math.PI) / 2);
+
+        const radius = Math.ceil(Math.max(vw, vh) / tileSize / 2) + 2;
+        const { x: px, y: py } = state.player;
+
+        for (let my = py - radius; my <= py + radius; my++) {
+          for (let mx = px - radius; mx <= px + radius; mx++) {
+            if (my < 0 || my >= state.height || mx < 0 || mx >= state.width) continue;
+            const dist = Math.hypot(mx - px, my - py);
+            let b = 1;
+            if (fogEnabled && fogMode === 'blocks') {
+              if (dist > fogRadius + 0.35) continue;
+              b = Math.max(0.14, 1 - (dist / (fogRadius + 0.6)) * 0.86);
+            }
+            const dx = (mx - px) * tileSize - tileSize / 2, dy = (my - py) * tileSize - tileSize / 2;
+            const cell = state.maze[my][mx];
+
+            if (cell === 1) {
+              ctx.fillStyle = `rgb(${Math.round(wr * b)},${Math.round(wg * b)},${Math.round(wb * b)})`;
+              ctx.fillRect(dx, dy, tileSize + 0.6, tileSize + 0.6);
+            } else if (cell === 2) {
+              ctx.fillStyle = `rgba(16,185,129,${0.24 * b})`;
+              ctx.fillRect(dx + 2, dy + 2, tileSize - 4, tileSize - 4);
+              ctx.strokeStyle = `rgba(52,211,153,${b})`;
+              ctx.lineWidth = 2.5;
+              ctx.beginPath(); ctx.arc(dx + tileSize / 2, dy + tileSize / 2, tileSize * 0.28, 0, Math.PI * 2); ctx.stroke();
+            } else if (cell === 3) {
+              ctx.fillStyle = `rgba(251,191,36,${b})`;
+              ctx.beginPath(); ctx.arc(dx + tileSize / 2, dy + tileSize / 2, tileSize * 0.16, 0, Math.PI * 2); ctx.fill();
+              ctx.strokeStyle = `rgba(251,191,36,${0.45 * b})`;
+              ctx.lineWidth = 2;
+              ctx.beginPath(); ctx.arc(dx + tileSize / 2, dy + tileSize / 2, tileSize * 0.28, 0, Math.PI * 2); ctx.stroke();
+            } else if (cell === 4) {
+              ctx.fillStyle = `rgba(250,204,21,${b})`;
+              ctx.beginPath(); ctx.arc(dx + tileSize / 2, dy + tileSize / 2, tileSize * 0.13, 0, Math.PI * 2); ctx.fill();
+            }
+          }
+        }
+        ctx.restore();
+
+        if (fogEnabled && fogMode === 'gradient') {
+          const grad = ctx.createRadialGradient(cx, cy, tileSize * 0.4, cx, cy, (fogRadius + 0.5) * tileSize);
+          grad.addColorStop(0, 'rgba(0,0,0,0)');
+          grad.addColorStop(0.65, 'rgba(0,0,0,0.65)');
+          grad.addColorStop(1, 'rgba(0,0,0,1)');
+          ctx.fillStyle = grad;
+          ctx.fillRect(0, 0, vw, vh);
+        }
+
+        if (tapFlash && performance.now() < tapFlash.until) {
+          ctx.save();
+          ctx.fillStyle = 'rgba(255,255,255,0.08)';
+          ctx.beginPath(); ctx.moveTo(cx, cy);
+          const pts = { up: [[0,0],[vw,0]], right: [[vw,0],[vw,vh]], down: [[vw,vh],[0,vh]], left: [[0,vh],[0,0]] }[tapFlash.dir];
+          ctx.lineTo(...pts[0]); ctx.lineTo(...pts[1]); ctx.closePath(); ctx.fill();
+          ctx.restore();
+          requestAnimationFrame(renderMaze);
+        }
+
+        // Player dot at center
+        ctx.save();
+        const r = Math.max(7, tileSize * 0.24);
+        ctx.shadowColor = 'rgba(251,191,36,0.85)'; ctx.shadowBlur = 14;
+        ctx.fillStyle = '#fbbf24';
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+        ctx.shadowBlur = 0; ctx.strokeStyle = '#000'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(cx, cy, r * 0.52, 0, Math.PI * 2); ctx.stroke();
+        ctx.restore();
+      }
+
+      // Movement
+      function attemptMove(dir) {
+        if (!state || state.screen !== 'map') return;
+        tapFlash = { dir, until: performance.now() + 140 };
+        const [sx, sy] = { up: [0,-1], down: [0,1], left: [-1,0], right: [1,0] }[dir];
+        const r = state.rotation % 4;
+        const [dx, dy] = r === 0 ? [sx, sy] : r === 1 ? [sy, -sx] : r === 2 ? [-sx, -sy] : [-sy, sx];
+        const nx = state.player.x + dx, ny = state.player.y + dy;
+
+        if (ny < 0 || ny >= state.height || nx < 0 || nx >= state.width || state.maze[ny][nx] === 1) {
+          Sound.play('bump'); renderMaze(); return;
+        }
+
+        state.player = { x: nx, y: ny };
+        state.moveHistory.push([nx, ny]);
+        if (state.moveHistory.length > 20) state.moveHistory.shift();
+        state.steps += 1;
+        state.stepsUntilEncounter -= 1;
+        Sound.play('step');
+
+        const cell = state.maze[ny][nx];
+        if (cell === 2) {
+          Sound.play('victory');
+          state.screen = 'victory';
+          state.journal.unshift({ floor: state.floor, step: state.steps, text: `Reached the exit on Floor ${state.floor}.` });
+          saveState(); updateUI(); renderMaze(); return;
+        }
+        if (cell === 4) {
+          state.maze[ny][nx] = 0;
+          const g = 5 + Math.floor(Math.random() * 11);
+          state.inventory.gold += g;
+          Sound.play('coin'); showToast(`Found ${g}g!`);
+        }
+        if (cell === 3) {
+          state.maze[ny][nx] = 0;
+          Sound.play('shrine');
+          const stories = state.theme.stories?.length ? state.theme.stories : DEFAULT_THEME.stories;
+          const s = stories[Math.floor(Math.random() * stories.length)];
+          state.activeStory = { title: s.title, icon: s.icon, text: s.text, choices: s.choices.map((c, idx) => ({ idx, label: c.label })), resolvedText: null };
+          state.screen = 'story';
+          saveState(); updateUI(); renderMaze(); return;
+        }
+        if (state.stepsUntilEncounter <= 0) {
+          state.stepsUntilEncounter = nextEncounterSteps(state.settings.encounterAvg);
+          triggerRandomEncounter();
+          return;
+        }
+        saveState(); updateUI(); renderMaze();
+      }
+
+      // Battle System
+      const firstAlive = () => state.party.findIndex(m => m.hp > 0);
+      const nextAlive = after => state.party.findIndex((m, i) => i > after && m.hp > 0);
+
+      function triggerRandomEncounter() {
+        Sound.play('encounter');
+        const list = state.theme.enemies?.length ? state.theme.enemies : DEFAULT_THEME.enemies;
+        const tpl = list[Math.floor(Math.random() * list.length)];
+        const scale = 1 + (state.floor - 1) * 0.25;
+        const maxHp = Math.round((tpl.hp || 40) * scale);
+        state.party.forEach(m => { m.defending = false; });
+        state.activeEncounter = {
+          name: tpl.name, type: tpl.type || 'Fiend', icon: tpl.icon || '👁️', desc: tpl.desc || '',
+          hp: maxHp, maxHp, atk: Math.round((tpl.atk || 7) * scale),
+          xp: tpl.xp || 15, gold: tpl.gold || 15, weakTo: tpl.weakTo || 'none', resistTo: tpl.resistTo || 'none',
+          round: 1, turnIndex: firstAlive(), status: 'active', logs: [`A ${tpl.name} blocks the passage!`]
+        };
+        state.screen = 'battle';
+        saveState(); updateUI();
+      }
+
+      function addBattleLog(msg) {
+        state.activeEncounter.logs.push(msg);
+        if (state.activeEncounter.logs.length > 25) state.activeEncounter.logs.shift();
+      }
+
+      function advanceBattleTurn() {
+        const enc = state.activeEncounter;
+        if (!enc || enc.status !== 'active') return;
+        if (enc.hp <= 0) {
+          enc.hp = 0; enc.status = 'won';
+          state.inventory.gold += enc.gold;
+          const lv = grantPartyXp(state, enc.xp);
+          addBattleLog(`Victory! Gained ${enc.gold}g and ${enc.xp} XP.`);
+          lv.forEach(l => addBattleLog(`★ ${l}!`));
+          state.journal.unshift({ floor: state.floor, step: state.steps, text: `Defeated ${enc.name} (+${enc.gold}g, +${enc.xp} XP).` });
+          Sound.play('shrine'); saveState(); updateUI(); return;
+        }
+        const ni = nextAlive(enc.turnIndex);
+        if (ni !== -1) { enc.turnIndex = ni; saveState(); updateUI(); return; }
+
+        const alive = state.party.filter(m => m.hp > 0);
+        if (alive.length) {
+          const t = alive[Math.floor(Math.random() * alive.length)];
+          let dmg = Math.max(2, enc.atk + Math.floor(Math.random() * 4) - 1);
+          if (t.defending) dmg = Math.max(1, Math.floor(dmg * 0.45));
+          t.hp = Math.max(0, t.hp - dmg);
+          Sound.play('hit');
+          addBattleLog(`${enc.name} strikes ${t.name} for ${dmg} dmg${t.defending ? ' (Defended!)' : ''}!`);
+          if (t.hp === 0) addBattleLog(`✖ ${t.name} fell!`);
+        }
+        const fa = firstAlive();
+        if (fa === -1) {
+          enc.status = 'lost'; addBattleLog('Your party has fallen in the labyrinth...');
+          saveState(); updateUI(); return;
+        }
+        state.party.forEach(m => { m.defending = false; });
+        enc.round += 1; enc.turnIndex = fa;
+        saveState(); updateUI();
+      }
+
+      function executePartyCommand(cmd) {
+        const enc = state.activeEncounter;
+        if (!enc || enc.status !== 'active') return;
+        const m = state.party[enc.turnIndex];
+        if (!m || m.hp <= 0) return;
+
+        if (cmd === 'attack') {
+          let dmg = m.atk + Math.floor(Math.random() * 4), note = '';
+          if (enc.weakTo === 'attack') { dmg = Math.round(dmg * 1.5); note = ' (Weakness!)'; }
+          else if (enc.resistTo === 'attack') { dmg = Math.max(1, Math.round(dmg * 0.6)); note = ' (Resisted)'; }
+          enc.hp = Math.max(0, enc.hp - dmg);
+          Sound.play('hit'); addBattleLog(`${m.name} uses ${state.theme.commands.attack}: ${dmg} dmg${note}.`);
+          advanceBattleTurn();
+        } else if (cmd === 'defend') {
+          m.defending = true; m.mp = Math.min(m.maxMp, m.mp + 2);
+          Sound.play('step'); addBattleLog(`${m.name} defends (+2 MP, reduced damage).`);
+          advanceBattleTurn();
+        } else if (cmd === 'cast') {
+          if (m.mp < 4) { showToast(`${m.name} needs 4 MP!`); return; }
+          m.mp -= 4;
+          let dmg = (m.mag || m.atk) + 4 + Math.floor(Math.random() * 5), note = '';
+          if (enc.weakTo === 'cast') { dmg = Math.round(dmg * 1.6); note = ' (Weakness!)'; }
+          else if (enc.resistTo === 'cast') { dmg = Math.max(1, Math.round(dmg * 0.55)); note = ' (Resisted)'; }
+          enc.hp = Math.max(0, enc.hp - dmg);
+          Sound.play('shrine'); addBattleLog(`${m.name} casts ${m.spellName}: ${dmg} dmg${note}!`);
+          advanceBattleTurn();
+        } else if (cmd === 'potion') {
+          if (state.inventory.potions <= 0) { showToast('No potions left!'); return; }
+          state.inventory.potions -= 1; healParty(state, 16, 4);
+          Sound.play('shrine'); addBattleLog(`${m.name} uses a Potion! (+16 HP / +4 MP)`);
+          advanceBattleTurn();
+        } else if (cmd === 'flee') {
+          enc.status = 'fled'; addBattleLog('Your party retreats into the corridors!');
+          state.journal.unshift({ floor: state.floor, step: state.steps, text: `Fled from ${enc.name}.` });
+          saveState(); updateUI();
+        }
+      }
+
+      function returnToMapFromBattle() {
+        const wasFlee = state.activeEncounter?.status === 'fled';
+        state.activeEncounter = null;
+        state.screen = 'map';
+
+        if (wasFlee) {
+          const hist = state.moveHistory || [];
+          if (hist.length >= 3) {
+            const [bx, by] = hist[hist.length - 3];
+            state.player = { x: bx, y: by };
+            state.moveHistory = hist.slice(0, hist.length - 2);
+          } else if (hist.length >= 2) {
+            const [bx, by] = hist[hist.length - 2];
+            state.player = { x: bx, y: by };
+            state.moveHistory = hist.slice(0, hist.length - 1);
+          }
+          state.rotation = (state.rotation + 1 + Math.floor(Math.random() * 3)) % 4;
+          showToast('You fled back 2 paces—and the labyrinth rotated!');
+        } else {
+          const { x: px, y: py } = state.player, cands = [];
+          for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+            const nx = px + dx, ny = py + dy;
+            if (ny >= 0 && ny < state.height && nx >= 0 && nx < state.width && state.maze[ny][nx] !== 1) cands.push([nx, ny]);
+          }
+          if (cands.length) {
+            const [rx, ry] = cands[Math.floor(Math.random() * cands.length)];
+            state.player = { x: rx, y: ry };
+            state.moveHistory.push([rx, ry]);
+          }
+          if (Math.random() < 0.5) {
+            state.rotation = (state.rotation + 1 + Math.floor(Math.random() * 3)) % 4;
+            showToast('Battle ended—your orientation twisted!');
+          } else showToast('Returned to the labyrinth.');
+        }
+        saveState(); updateUI(); renderMaze();
+      }
+
+      // UI Update
+      function updateUI() {
+        if (!state) return;
+        const theme = state.theme || DEFAULT_THEME, cmds = theme.commands || DEFAULT_THEME.commands;
+        $('hudThemeTitle').textContent = theme.themeName || 'WHITE LABYRINTH';
+        $('hudFloorBadge').textContent = `F${state.floor}`;
+        $('hudSeed').textContent = `SEED: ${state.seed}`;
+        $('hudSteps').textContent = `STEPS: ${state.steps}`;
+        $('hudGold').textContent = `${state.inventory.gold}g`;
+        $('hudPotions').textContent = state.inventory.potions;
+        $('iconSoundOn').classList.toggle('hidden', state.muted);
+        $('iconSoundOff').classList.toggle('hidden', !state.muted);
+
+        $('miniPartyBar').innerHTML = state.party.map(m => {
+          const pct = Math.max(0, Math.min(100, Math.round((m.hp / m.maxHp) * 100)));
+          return `<div class="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-zinc-900/90 border border-zinc-800 shrink-0">
+            <div class="text-[11px] font-semibold ${m.hp <= 0 ? 'text-red-400 line-through' : 'text-zinc-200'}">${m.name}</div>
+            <div class="w-12 h-1.5 bg-zinc-800 rounded-full overflow-hidden"><div class="h-full ${pct > 40 ? 'bg-emerald-400' : 'bg-red-400'}" style="width:${pct}%"></div></div>
+            <span class="text-[10px] font-mono-code text-zinc-400">${m.hp}/${m.maxHp}</span>
+          </div>`;
+        }).join('');
+
+        ['intro', 'battle', 'story', 'victory'].forEach(sc => $(`${sc}Modal`).classList.toggle('hidden', state.screen !== sc));
+
+        if (state.screen === 'intro') {
+          $('introModalTitle').textContent = theme.introTitle || DEFAULT_THEME.introTitle;
+          $('introModalText').textContent = theme.introText || DEFAULT_THEME.introText;
+        }
+        if (state.screen === 'battle' && state.activeEncounter) {
+          const enc = state.activeEncounter;
+          $('battleRoundBadge').textContent = `ROUND ${enc.round}`;
+          $('battleEnemyType').textContent = enc.type;
+          $('battleEnemyIcon').textContent = enc.icon;
+          $('battleEnemyName').textContent = enc.name;
+          $('battleEnemyDesc').textContent = enc.desc;
+          const tp = [];
+          if (enc.weakTo && enc.weakTo !== 'none') tp.push(`Weak: ${enc.weakTo.toUpperCase()}`);
+          if (enc.resistTo && enc.resistTo !== 'none') tp.push(`Resist: ${enc.resistTo.toUpperCase()}`);
+          $('battleEnemyTrait').textContent = tp.join(' • ') || 'Balanced';
+          $('battleEnemyHpText').textContent = `${enc.hp} / ${enc.maxHp}`;
+          $('battleEnemyHpBar').style.width = `${Math.max(0, Math.round((enc.hp / enc.maxHp) * 100))}%`;
+          $('lblCmdAttack').textContent = cmds.attack || 'Attack';
+          $('lblCmdDefend').textContent = cmds.defend || 'Defend';
+          $('lblCmdCast').textContent = `${cmds.cast || 'Cast'} (4MP)`;
+          $('lblCmdFlee').textContent = cmds.flee || 'Flee';
+          $('battlePotionCount').textContent = state.inventory.potions;
+
+          $('battlePartyList').innerHTML = state.party.map((m, idx) => {
+            const act = enc.status === 'active' && idx === enc.turnIndex;
+            const pct = Math.max(0, Math.round((m.hp / m.maxHp) * 100));
+            return `<div class="p-2.5 rounded-xl bg-zinc-900 border ${act ? 'border-amber-400 ring-1 ring-amber-400/50' : 'border-zinc-800'} text-xs transition">
+              <div class="flex justify-between items-center font-semibold ${m.hp <= 0 ? 'text-red-400' : 'text-white'}"><span class="truncate">${m.name}</span><span class="text-[10px] font-mono-code text-amber-300">Lv${m.lvl}</span></div>
+              <div class="text-[10px] text-zinc-400 mb-1.5 truncate">${m.role}</div>
+              <div class="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden mb-1"><div class="h-full ${pct > 35 ? 'bg-emerald-400' : 'bg-red-500'}" style="width:${pct}%"></div></div>
+              <div class="flex justify-between text-[10px] font-mono-code"><span class="text-emerald-300">${m.hp}/${m.maxHp}</span><span class="text-sky-300">${m.mp}/${m.maxMp}MP</span></div>
+            </div>`;
+          }).join('');
+
+          const am = state.party[enc.turnIndex];
+          $('battleTurnHint').textContent = enc.status === 'active' && am ? `${am.name}'s Turn` : enc.status === 'won' ? 'Victory!' : enc.status === 'fled' ? 'Retreated' : 'Defeated';
+          $('battleLog').innerHTML = enc.logs.map(l => `<div>&rsaquo; ${l}</div>`).join('');
+          $('battleLog').scrollTop = $('battleLog').scrollHeight;
+          const act = enc.status === 'active';
+          $('battleActions').classList.toggle('hidden', !act);
+          $('battleEndControls').classList.toggle('hidden', act);
+          $('btnBattleReturn').classList.toggle('hidden', enc.status === 'lost');
+          $('battleDefeatButtons').classList.toggle('hidden', enc.status !== 'lost');
+        }
+        if (state.screen === 'story' && state.activeStory) {
+          const st = state.activeStory;
+          $('storyTitle').textContent = st.title; $('storyIcon').textContent = st.icon; $('storyText').textContent = st.text;
+          $('storyChoices').innerHTML = st.resolvedText ? '' : st.choices.map(c =>
+            `<button type="button" data-story-choice="${c.idx}" class="w-full text-left px-3.5 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-xs font-medium text-zinc-100 active:scale-[0.99] transition">${c.label}</button>`
+          ).join('');
+          $('storyResult').textContent = st.resolvedText || '';
+          $('storyResult').classList.toggle('hidden', !st.resolvedText);
+          $('btnStoryContinue').classList.toggle('hidden', !st.resolvedText);
+        }
+        if (state.screen === 'victory') {
+          $('victoryModalTitle').textContent = theme.victoryTitle || DEFAULT_THEME.victoryTitle;
+          $('vicFloor').textContent = state.floor; $('vicSteps').textContent = state.steps; $('vicGold').textContent = `${state.inventory.gold}g`;
+          $('victorySummary').textContent = `${theme.victoryText || DEFAULT_THEME.victoryText} (${state.width}×${state.height}, Seed: ${state.seed}, ${state.steps} steps)`;
+        }
+      }
+
+      // Events
+      let touchStart = null;
+      canvas.addEventListener('pointerdown', e => { if (state?.screen === 'map') { Sound.init(); touchStart = { x: e.clientX, y: e.clientY }; } });
+      canvas.addEventListener('pointerup', e => {
+        if (!state || state.screen !== 'map' || !touchStart) return;
+        const dx = e.clientX - touchStart.x, dy = e.clientY - touchStart.y;
+        touchStart = null;
+        if (Math.hypot(dx, dy) > 28) return attemptMove(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'));
+        const r = canvas.getBoundingClientRect(), nx = (e.clientX - r.left - r.width / 2) / (r.width / 2), ny = (e.clientY - r.top - r.height / 2) / (r.height / 2);
+        attemptMove(Math.abs(nx) > Math.abs(ny) ? (nx > 0 ? 'right' : 'left') : (ny > 0 ? 'down' : 'up'));
+      });
+
+      window.addEventListener('keydown', e => {
+        if (!state || state.screen !== 'map') return;
+        if (!['newRunModal', 'journalModal', 'tweaksModal'].every(id => $(id).classList.contains('hidden'))) return;
+        const map = { ArrowUp: 'up', w: 'up', W: 'up', ArrowDown: 'down', s: 'down', S: 'down', ArrowLeft: 'left', a: 'left', A: 'left', ArrowRight: 'right', d: 'right', D: 'right' };
+        if (map[e.key]) { e.preventDefault(); attemptMove(map[e.key]); }
+      });
+
+      $('btnCloseIntro').addEventListener('click', () => { state.screen = 'map'; saveState(); updateUI(); renderMaze(); });
+      $('btnCmdAttack').addEventListener('click', () => executePartyCommand('attack'));
+      $('btnCmdDefend').addEventListener('click', () => executePartyCommand('defend'));
+      $('btnCmdCast').addEventListener('click', () => executePartyCommand('cast'));
+      $('btnCmdPotion').addEventListener('click', () => executePartyCommand('potion'));
+      $('btnBattleFlee').addEventListener('click', () => executePartyCommand('flee'));
+      $('btnBattleReturn').addEventListener('click', returnToMapFromBattle);
+      $('btnBattleRevive').addEventListener('click', () => {
+        state.party.forEach(m => { m.hp = m.maxHp; m.mp = m.maxMp; m.defending = false; });
+        state.player = { x: 1, y: 1 }; state.moveHistory = [[1, 1]]; state.activeEncounter = null; state.screen = 'map';
+        saveState(); updateUI(); renderMaze(); showToast('Revived at the floor entrance!');
+      });
+
+      $('storyChoices').addEventListener('click', e => {
+        const btn = e.target.closest('[data-story-choice]');
+        if (!btn || !state?.activeStory) return;
+        const stories = state.theme.stories?.length ? state.theme.stories : DEFAULT_THEME.stories;
+        const tpl = stories.find(s => s.title === state.activeStory.title);
+        const ch = tpl?.choices[Number(btn.getAttribute('data-story-choice'))];
+        if (!ch) return;
+        const amt = ch.amount ?? 10;
+        if (ch.effect === 'gold') state.inventory.gold += amt;
+        else if (ch.effect === 'heal') healParty(state, amt, Math.ceil(amt / 2));
+        else if (ch.effect === 'potion') state.inventory.potions += amt;
+        else if (ch.effect === 'atk') state.party.forEach(m => { m.atk += amt; });
+        else if (ch.effect === 'reset_rotation') state.rotation = 0;
+        state.activeStory.resolvedText = ch.resultText || 'Done.';
+        state.journal.unshift({ floor: state.floor, step: state.steps, text: `${state.activeStory.title}: ${state.activeStory.resolvedText}` });
+        saveState(); updateUI();
+      });
+
+      $('btnStoryContinue').addEventListener('click', () => { state.activeStory = null; state.screen = 'map'; saveState(); updateUI(); renderMaze(); });
+      $('btnDescend').addEventListener('click', () => {
+        healParty(state, 8, 6);
+        state = createNewState(state.seed, state.width, state.height, state.archetype, state.party, state.floor + 1, state.inventory, state.journal, state.settings, state.theme);
+        saveState(); updateUI(); renderMaze(); showToast(`Descended to Floor ${state.floor}`);
+      });
+
+      $('btnUsePotion').addEventListener('click', () => {
+        if (!state || state.inventory.potions <= 0) return showToast('No potions left!');
+        state.inventory.potions -= 1; healParty(state, 16, 5);
+        Sound.play('shrine'); showToast('Party restored +16 HP / +5 MP!'); saveState(); updateUI();
+      });
+
+      $('btnJournal').addEventListener('click', () => {
+        $('journalPartyList').innerHTML = state.party.map(m => `
+          <div class="flex items-center justify-between p-2.5 rounded-xl bg-zinc-900 border border-zinc-800 text-xs">
+            <div><div class="font-semibold text-white">${m.name} <span class="text-zinc-400 font-normal">(${m.role})</span></div>
+            <div class="text-[11px] text-zinc-400 mt-0.5">Lv ${m.lvl} • ATK ${m.atk} • MAG ${m.mag} • XP ${m.xp}/${m.lvl * 30}</div></div>
+            <div class="text-right font-mono-code text-[11px]"><div class="text-emerald-300">HP ${m.hp}/${m.maxHp}</div><div class="text-sky-300">MP ${m.mp}/${m.maxMp}</div></div>
+          </div>`).join('');
+        $('journalInventory').textContent = `Gold: ${state.inventory.gold}g • Potions: ${state.inventory.potions} • Floor: ${state.floor} • Seed: ${state.seed} (${state.width}×${state.height})`;
+        $('journalEntries').innerHTML = state.journal.map(j => `<div class="px-2.5 py-1.5 rounded-lg bg-zinc-900/70 border border-zinc-800/80"><span class="font-mono-code text-[10px] text-amber-400">[F${j.floor} • S${j.step}]</span> ${j.text}</div>`).join('');
+        $('journalModal').classList.remove('hidden');
+      });
+      $('btnCloseJournal').addEventListener('click', () => $('journalModal').classList.add('hidden'));
+
+      function syncTweaksUI() {
+        const s = state.settings;
+        $('chkFogEnabled').checked = s.fogEnabled; $('rngFogRadius').value = s.fogRadius; $('lblFogRadius').textContent = s.fogRadius;
+        $('selFogMode').value = s.fogMode || 'blocks'; $('rngZoomTiles').value = s.zoomTiles; $('lblZoomTiles').textContent = s.zoomTiles;
+        $('rngEncounterAvg').value = s.encounterAvg; $('lblEncounterAvg').textContent = s.encounterAvg;
+        $('rngTokenFreq').value = s.tokenFreq; $('lblTokenFreq').textContent = ['Low', 'Normal', 'High'][s.tokenFreq] || 'Normal';
+        $('txtThemeJson').value = JSON.stringify(state.theme, null, 2);
+        $('jsonErrorMsg').classList.add('hidden');
+      }
+
+      $('btnTweaks').addEventListener('click', () => { syncTweaksUI(); $('tweaksModal').classList.remove('hidden'); });
+      $('btnCloseTweaks').addEventListener('click', () => $('tweaksModal').classList.add('hidden'));
+      $('tabBtnGameplay').addEventListener('click', () => {
+        $('tabPanelGameplay').classList.remove('hidden'); $('tabPanelJson').classList.add('hidden');
+        $('tabBtnGameplay').classList.add('text-sky-300', 'border-sky-400'); $('tabBtnGameplay').classList.remove('text-zinc-400', 'border-transparent');
+        $('tabBtnJson').classList.remove('text-sky-300', 'border-sky-400'); $('tabBtnJson').classList.add('text-zinc-400', 'border-transparent');
+      });
+      $('tabBtnJson').addEventListener('click', () => {
+        $('tabPanelJson').classList.remove('hidden'); $('tabPanelGameplay').classList.add('hidden');
+        $('tabBtnJson').classList.add('text-sky-300', 'border-sky-400'); $('tabBtnJson').classList.remove('text-zinc-400', 'border-transparent');
+        $('tabBtnGameplay').classList.remove('text-sky-300', 'border-sky-400'); $('tabBtnGameplay').classList.add('text-zinc-400', 'border-transparent');
+      });
+
+      $('chkFogEnabled').addEventListener('change', e => { state.settings.fogEnabled = e.target.checked; saveState(); renderMaze(); });
+      $('rngFogRadius').addEventListener('input', e => { state.settings.fogRadius = Number(e.target.value); $('lblFogRadius').textContent = state.settings.fogRadius; saveState(); renderMaze(); });
+      $('selFogMode').addEventListener('change', e => { state.settings.fogMode = e.target.value; saveState(); renderMaze(); });
+      $('rngZoomTiles').addEventListener('input', e => { state.settings.zoomTiles = Number(e.target.value); $('lblZoomTiles').textContent = state.settings.zoomTiles; saveState(); renderMaze(); });
+      $('rngEncounterAvg').addEventListener('input', e => { state.settings.encounterAvg = Number(e.target.value); $('lblEncounterAvg').textContent = state.settings.encounterAvg; state.stepsUntilEncounter = Math.min(state.stepsUntilEncounter, state.settings.encounterAvg + 5); saveState(); });
+      $('rngTokenFreq').addEventListener('input', e => { state.settings.tokenFreq = Number(e.target.value); $('lblTokenFreq').textContent = ['Low', 'Normal', 'High'][state.settings.tokenFreq] || 'Normal'; saveState(); });
+      $('btnTweakHeal').addEventListener('click', () => { state.party.forEach(m => { m.hp = m.maxHp; m.mp = m.maxMp; m.defending = false; }); Sound.play('shrine'); saveState(); updateUI(); showToast('Party HP & MP fully refreshed!'); });
+      $('btnTweakResetRot').addEventListener('click', () => { state.rotation = 0; saveState(); renderMaze(); showToast('Map orientation reset to 0°.'); });
+
+      $('btnExportJson').addEventListener('click', async () => {
+        const text = JSON.stringify(state.theme, null, 2);
+        try { await navigator.clipboard.writeText(text); showToast('Theme JSON copied to clipboard!'); }
+        catch { $('txtThemeJson').select(); document.execCommand('copy'); showToast('Theme JSON copied!'); }
+      });
+      $('btnDownloadJson').addEventListener('click', () => {
+        const url = URL.createObjectURL(new Blob([JSON.stringify(state.theme, null, 2)], { type: 'application/json' }));
+        const a = document.createElement('a'); a.href = url; a.download = `${(state.theme.themeName || 'labyrinth-theme').toLowerCase().replace(/\s+/g, '-')}.json`; a.click(); URL.revokeObjectURL(url);
+      });
+      $('btnResetTheme').addEventListener('click', () => { state.theme = clone(DEFAULT_THEME); syncTweaksUI(); saveState(); updateUI(); renderMaze(); showToast('Restored default theme.'); });
+      $('btnImportJson').addEventListener('click', () => {
+        try {
+          const p = JSON.parse($('txtThemeJson').value);
+          if (!p || !Array.isArray(p.enemies) || !Array.isArray(p.archetypes)) throw new Error('JSON must include "enemies" and "archetypes" arrays.');
+          state.theme = p; $('jsonErrorMsg').classList.add('hidden'); saveState(); updateUI(); renderMaze();
+          showToast(`Applied theme: ${p.themeName || 'Custom'}`);
+        } catch (e) { $('jsonErrorMsg').textContent = `Invalid JSON: ${e.message}`; $('jsonErrorMsg').classList.remove('hidden'); }
+      });
+
+      function openNewRunModal() {
+        $('inputSeed').value = randomSeedString();
+        $('inputWidth').value = state ? state.width : 19;
+        $('inputHeight').value = state ? state.height : 19;
+        const archList = state?.theme?.archetypes || DEFAULT_THEME.archetypes;
+        $('archetypeOptions').innerHTML = archList.map((a, i) => `
+          <label class="flex items-start gap-2.5 p-2.5 rounded-xl bg-zinc-900 border border-zinc-700 cursor-pointer hover:border-amber-400/60">
+            <input type="radio" name="archetype" value="${a.id}" ${i === 0 ? 'checked' : ''} class="mt-1 accent-amber-400" />
+            <div><div class="text-xs font-semibold text-white">${a.name}</div><div class="text-[11px] text-zinc-400">${a.desc}</div></div>
+          </label>`).join('');
+        $('newRunModal').classList.remove('hidden');
+      }
+
+      $('btnNewRun').addEventListener('click', openNewRunModal);
+      $('btnVictoryNew').addEventListener('click', openNewRunModal);
+      $('btnBattleNewSeed').addEventListener('click', openNewRunModal);
+      $('btnCloseNewRun').addEventListener('click', () => $('newRunModal').classList.add('hidden'));
+      $('btnRandomSeed').addEventListener('click', () => { $('inputSeed').value = randomSeedString(); });
+      $('newRunForm').addEventListener('submit', e => {
+        e.preventDefault();
+        state = createNewState(
+          $('inputSeed').value.trim() || randomSeedString(),
+          parseInt($('inputWidth').value, 10) || 19,
+          parseInt($('inputHeight').value, 10) || 19,
+          document.querySelector('input[name="archetype"]:checked')?.value || 'knight',
+          null, 1, null, null, state.settings, state.theme
+        );
+        saveState(); $('newRunModal').classList.add('hidden'); updateUI(); renderMaze();
+      });
+
+      $('btnMute').addEventListener('click', () => { state.muted = !state.muted; saveState(); updateUI(); });
+      const syncFs = () => {
+        const fs = Boolean(document.fullscreenElement || document.webkitFullscreenElement);
+        $('iconFsEnter').classList.toggle('hidden', fs); $('iconFsExit').classList.toggle('hidden', !fs);
+      };
+      $('btnFullscreen').addEventListener('click', async () => {
+        const el = document.documentElement;
+        try {
+          if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+            if (el.requestFullscreen) await el.requestFullscreen();
+            else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+            else showToast('Fullscreen not supported on this browser.');
+          } else {
+            if (document.exitFullscreen) await document.exitFullscreen();
+            else if (document.webkitExitFullscreen) el.webkitExitFullscreen();
+          }
+        } catch { showToast('Fullscreen blocked by browser/frame.'); }
+        syncFs();
+      });
+      document.addEventListener('fullscreenchange', syncFs);
+      document.addEventListener('webkitfullscreenchange', syncFs);
+
+      window.addEventListener('resize', resizeCanvas);
+      window.onload = () => {
+        state = loadState() || createNewState(randomSeedString(), 19, 19, 'knight');
+        saveState(); updateUI(); resizeCanvas();
+      };
+    })();
+  </script>
+</body>
+</html>
