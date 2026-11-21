@@ -1002,30 +1002,53 @@
         saveState(); updateUI(); renderMaze();
       }
 
-      function walkForward() {
+      function hasItemWithinTwo(dir) {
+        const [dx, dy] = DIRS[dir];
+        const x1 = state.player.x + dx, y1 = state.player.y + dy;
+        if (!isOpenCell(x1, y1)) return false;
+        if (state.maze[y1][x1] === 3 || state.maze[y1][x1] === 4) return true;
+        const x2 = x1 + dx, y2 = y1 + dy;
+        if (!isOpenCell(x2, y2)) return false;
+        return state.maze[y2][x2] === 3 || state.maze[y2][x2] === 4;
+      }
+
+      function isChalkBlockingAhead(nx, ny) {
+        return state.chalkMarks[`${nx},${ny}`] === (state.facing + 2) % 4;
+      }
+
+      function walkForward(isAuto = false) {
         if (!state || state.screen !== 'map') return;
         const [dx, dy] = DIRS[state.facing];
         const nx = state.player.x + dx, ny = state.player.y + dy;
 
-        // If there's a wall in front: turn right if right is open, else left if left is open, else right
-        if (!isOpenCell(nx, ny)) {
+        const wallAhead = !isOpenCell(nx, ny);
+        const chalkAhead = !wallAhead && isAuto && isChalkBlockingAhead(nx, ny);
+
+        // If there's a wall (or chalk arrow pointing at us during auto-walk) in front:
+        if (wallAhead || chalkAhead) {
           const rightDir = (state.facing + 1) % 4;
           const leftDir = (state.facing + 3) % 4;
           const [rx, ry] = DIRS[rightDir];
           const [lx, ly] = DIRS[leftDir];
-          if (isOpenCell(state.player.x + rx, state.player.y + ry)) {
-            state.facing = rightDir;
-            startRotationAnim(1, 280);
-            tapFlash = { dir: 'right', until: performance.now() + 150 };
-          } else if (isOpenCell(state.player.x + lx, state.player.y + ly)) {
-            state.facing = leftDir;
-            startRotationAnim(-1, 280);
-            tapFlash = { dir: 'left', until: performance.now() + 150 };
-          } else {
-            state.facing = rightDir;
-            startRotationAnim(1, 280);
-            tapFlash = { dir: 'right', until: performance.now() + 150 };
+          const rightOpen = isOpenCell(state.player.x + rx, state.player.y + ry);
+          const leftOpen = isOpenCell(state.player.x + lx, state.player.y + ly);
+
+          let turnDir = rightDir, delta = 1, flash = 'right';
+          if (rightOpen && leftOpen) {
+            const rightItem = hasItemWithinTwo(rightDir);
+            const leftItem = hasItemWithinTwo(leftDir);
+            if (leftItem && !rightItem) {
+              turnDir = leftDir; delta = -1; flash = 'left';
+            }
+          } else if (rightOpen) {
+            turnDir = rightDir; delta = 1; flash = 'right';
+          } else if (leftOpen) {
+            turnDir = leftDir; delta = -1; flash = 'left';
           }
+
+          state.facing = turnDir;
+          startRotationAnim(delta, 280);
+          tapFlash = { dir: flash, until: performance.now() + 150 };
           Sound.play('bump');
           saveState(); updateUI(); renderMaze();
           return;
@@ -1328,21 +1351,10 @@
         }
       }
 
-      // Auto-walk helper: continues forward only along straight 1-tile corridors
+      // Auto-walk helper: holding forward simply repeats walkForward(true) while on the map
       let holdTimer = null;
       let autoWalkInterval = null;
       let didAutoWalk = false;
-
-      function isStraightCorridor() {
-        if (!state || state.screen !== 'map') return false;
-        const [fx, fy] = DIRS[state.facing];
-        const [rx, ry] = DIRS[(state.facing + 1) % 4];
-        const [lx, ly] = DIRS[(state.facing + 3) % 4];
-        const aheadOpen = isOpenCell(state.player.x + fx, state.player.y + fy);
-        const rightOpen = isOpenCell(state.player.x + rx, state.player.y + ry);
-        const leftOpen = isOpenCell(state.player.x + lx, state.player.y + ly);
-        return aheadOpen && !rightOpen && !leftOpen;
-      }
 
       function stopAutoWalk() {
         clearTimeout(holdTimer);
@@ -1354,11 +1366,11 @@
       function startAutoWalk() {
         stopAutoWalk();
         autoWalkInterval = setInterval(() => {
-          if (!isStraightCorridor()) {
+          if (!state || state.screen !== 'map') {
             stopAutoWalk();
             return;
           }
-          walkForward();
+          walkForward(true);
         }, 190);
       }
 
